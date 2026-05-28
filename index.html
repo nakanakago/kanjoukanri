@@ -590,10 +590,13 @@
     .autosave-status.error    { color: var(--bad);  border-color: var(--bad)44;  background: var(--bad)0d;  }
 
     /* レスポンシブ */
-    @media (max-width: 500px) {
-      .score-grid { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 600px) {
+      .score-grid { grid-template-columns: 1fr; }
       .avg-badges { gap: 8px; }
       .badge { min-width: 80px; }
+      select { padding: 14px 32px 14px 12px; font-size: 1.05rem; }
+      .tab { padding: 8px 12px; font-size: 0.8rem; }
+      header { position: relative; }
     }
   </style>
 </head>
