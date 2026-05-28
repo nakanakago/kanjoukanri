@@ -589,44 +589,14 @@
     .autosave-status.saving   { color: var(--mid);  border-color: var(--mid)44;  background: var(--mid)0d;  }
     .autosave-status.error    { color: var(--bad);  border-color: var(--bad)44;  background: var(--bad)0d;  }
 
-    /* ── スコアボタン（スマホ用） ── */
-    .score-btn-group {
-      display: none;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .score-btn {
-      flex: 1;
-      min-width: 36px;
-      padding: 10px 4px;
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      background: var(--surface2);
-      color: var(--text2);
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .score-btn.active-high { background: var(--good); color: var(--bg); border-color: var(--good); }
-    .score-btn.active-mid  { background: var(--mid);  color: var(--bg); border-color: var(--mid);  }
-    .score-btn.active-low  { background: var(--bad);  color: #fff;      border-color: var(--bad);  }
-
     /* レスポンシブ */
     @media (max-width: 600px) {
       .score-grid { grid-template-columns: 1fr; }
       .avg-badges { gap: 8px; }
       .badge { min-width: 80px; }
+      select { padding: 14px 32px 14px 12px; font-size: 1.05rem; }
       .tab { padding: 8px 12px; font-size: 0.8rem; }
       header { position: relative; }
-      /* スマホではselectを隠してボタンを表示 */
-      .score-item select { display: none; }
-      .score-btn-group { display: flex; }
     }
   </style>
 </head>
@@ -660,21 +630,18 @@
           <select id="score-tairyoku" onchange="updateSelectColor(this)">
             <option value="">選択</option>
           </select>
-          <div class="score-btn-group" id="btn-tairyoku"></div>
         </div>
         <div class="score-item">
           <label><span class="emoji">🧠</span>メンタル</label>
           <select id="score-mental" onchange="updateSelectColor(this)">
             <option value="">選択</option>
           </select>
-          <div class="score-btn-group" id="btn-mental"></div>
         </div>
         <div class="score-item">
           <label><span class="emoji">🎯</span>集中力</label>
           <select id="score-focus" onchange="updateSelectColor(this)">
             <option value="">選択</option>
           </select>
-          <div class="score-btn-group" id="btn-focus"></div>
         </div>
       </div>
 
@@ -794,30 +761,13 @@ function saveRecords(records) {
 ────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', () => {
   // スコア選択肢を生成
-  const scoreMap = { 'score-tairyoku': 'btn-tairyoku', 'score-mental': 'btn-mental', 'score-focus': 'btn-focus' };
-  Object.entries(scoreMap).forEach(([selId, btnId]) => {
-    const sel = document.getElementById(selId);
-    const group = document.getElementById(btnId);
+  ['score-tairyoku','score-mental','score-focus'].forEach(id => {
+    const sel = document.getElementById(id);
     for (let i = 10; i >= 1; i--) {
       const opt = document.createElement('option');
       opt.value = i;
       opt.textContent = `${i}点 ${scoreEmoji(i)}`;
       sel.appendChild(opt);
-    }
-    // ボタングループ生成（スマホ用）
-    for (let i = 1; i <= 10; i++) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = i;
-      btn.dataset.value = i;
-      btn.className = 'score-btn';
-      btn.addEventListener('click', () => {
-        sel.value = i;
-        updateSelectColor(sel);
-        group.querySelectorAll('.score-btn').forEach(b => b.className = 'score-btn');
-        btn.classList.add(i >= 7 ? 'active-high' : i >= 4 ? 'active-mid' : 'active-low');
-      });
-      group.appendChild(btn);
     }
   });
 
@@ -877,11 +827,10 @@ function saveRecord() {
   saveRecords(records);
 
   // リセット
-  [['score-tairyoku','btn-tairyoku'],['score-mental','btn-mental'],['score-focus','btn-focus']].forEach(([selId, btnId]) => {
-    const s = document.getElementById(selId);
+  ['score-tairyoku','score-mental','score-focus'].forEach(id => {
+    const s = document.getElementById(id);
     s.value = '';
     s.classList.remove('score-high','score-mid','score-low');
-    document.getElementById(btnId)?.querySelectorAll('.score-btn').forEach(b => b.className = 'score-btn');
   });
   document.getElementById('comment').value = '';
 
