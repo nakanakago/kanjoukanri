@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>感情管理 — 自分の調子を見える化</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3248;
+      --accent: #6c63ff;
+      --accent2: #ff6584;
+      --accent3: #43e97b;
+      --text: #e8eaf6;
+      --text2: #8b90b0;
+      --good: #43e97b;
+      --mid: #f9ca24;
+      --bad: #ff6b6b;
+      --radius: 14px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* ── ヘッダー ── */
+    header {
+      background: linear-gradient(135deg, #1a1d27 0%, #22263a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+
+    h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em; }
+    .subtitle { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+
+    /* ── タブ ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .tab {
+      padding: 8px 18px;
+      border: none;
+      background: none;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab:hover:not(.active) { color: var(--text); }
+
+    /* ── メイン ── */
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 24px 16px 0;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── カード ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text2);
+      margin-bottom: 20px;
+    }
+
+    /* ── スコア入力 ── */
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .score-item label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text2);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .score-item .emoji { margin-right: 4px; }
+
+    select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      appearance: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b90b0' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    select:focus { outline: none; border-color: var(--accent); }
+
+    /* スコア値の色 */
+    select.score-high { border-color: var(--good); color: var(--good); }
+    select.score-mid  { border-color: var(--mid);  color: var(--mid);  }
+    select.score-low  { border-color: var(--bad);  color: var(--bad);  }
+
+    .comment-wrap { margin-bottom: 20px; }
+    .comment-wrap label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text2);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      resize: vertical;
+      min-height: 60px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus { outline: none; border-color: var(--accent); }
+
+    /* ── ボタン ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 11px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+      color: #fff;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    /* ── トースト ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: var(--surface2);
+      border: 1px solid var(--good);
+      color: var(--good);
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: transform 0.3s ease;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── 平均スコアバッジ ── */
+    .avg-badges {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      flex: 1;
+      min-width: 100px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .badge-label {
+      font-size: 0.72rem;
+      color: var(--text2);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .badge-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin: 4px 0 2px;
+    }
+
+    .badge-sub { font-size: 0.7rem; color: var(--text2); }
+
+    /* ── グラフ ── */
+    .chart-wrap {
+      position: relative;
+      height: 220px;
+      margin-bottom: 8px;
+    }
+
+    /* ── 記録一覧 ── */
+    .records-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .record-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: border-color 0.15s;
+    }
+
+    .record-item:hover { border-color: var(--accent); }
+
+    .record-date {
+      font-size: 0.72rem;
+      color: var(--text2);
+      white-space: nowrap;
+      min-width: 100px;
+      padding-top: 2px;
+    }
+
+    .record-scores {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .score-tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--surface);
+    }
+
+    .score-tag.high { color: var(--good); border: 1px solid var(--good)22; background: var(--good)12; }
+    .score-tag.mid  { color: var(--mid);  border: 1px solid var(--mid)22;  background: var(--mid)12;  }
+    .score-tag.low  { color: var(--bad);  border: 1px solid var(--bad)22;  background: var(--bad)12;  }
+
+    .record-comment {
+      font-size: 0.8rem;
+      color: var(--text2);
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    .record-body { flex: 1; min-width: 0; }
+
+    .record-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .delete-btn, .edit-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+
+    .delete-btn { color: var(--text2); }
+    .delete-btn:hover { color: var(--bad); }
+    .edit-btn { color: var(--text2); }
+    .edit-btn:hover { color: var(--accent); }
+
+    /* ── インライン編集フォーム ── */
+    .edit-form {
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .edit-form.open { display: block; }
+
+    .edit-score-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .edit-score-row .edit-score-item {
+      flex: 1;
+      min-width: 80px;
+    }
+
+    .edit-score-row label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+
+    .edit-score-row select {
+      font-size: 0.82rem;
+      padding: 6px 28px 6px 8px;
+    }
+
+    .edit-comment {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.85rem;
+      resize: vertical;
+      min-height: 48px;
+      font-family: inherit;
+      margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+
+    .edit-comment:focus { outline: none; border-color: var(--accent); }
+
+    .edit-form-btns {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn-save-edit {
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn-save-edit:hover { opacity: 0.88; }
+
+    .btn-cancel-edit {
+      background: none;
+      color: var(--text2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .btn-cancel-edit:hover { color: var(--text); }
+
+    /* ── 月次レポート ── */
+    .month-selector {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .month-selector select {
+      flex: 1;
+      max-width: 200px;
+    }
+
+    .report-section { margin-bottom: 20px; }
+
+    .report-section h3 {
+      font-size: 0.82rem;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .insight-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .insight-item {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .insight-item .ins-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .ins-good  { color: var(--good); }
+    .ins-bad   { color: var(--bad);  }
+    .ins-info  { color: var(--accent); }
+
+    .streak-bar {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .streak-dot {
+      width: 22px; height: 22px;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--bg);
+      cursor: default;
+      position: relative;
+    }
+
+    .streak-dot:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.68rem;
+      white-space: nowrap;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text2);
+    }
+
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.88rem; line-height: 1.6; }
+
+    /* フィルター */
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .filter-row label { font-size: 0.8rem; color: var(--text2); }
+    .filter-row select { max-width: 140px; font-size: 0.82rem; padding: 7px 30px 7px 10px; }
+
+    /* ── エクスポート ── */
+    .export-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-export {
+      flex: 1;
+      min-width: 120px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-export:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn-export.csv:hover  { border-color: var(--good); color: var(--good); }
+    .btn-export.json:hover { border-color: var(--mid);  color: var(--mid);  }
+    .btn-export.import-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    .export-note {
+      font-size: 0.75rem;
+      color: var(--text2);
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+
+    .autosave-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      word-break: break-all;
+    }
+
+    .autosave-status.inactive { color: var(--text2); }
+    .autosave-status.active   { color: var(--good); border-color: var(--good)44; background: var(--good)0d; }
+    .autosave-status.saving   { color: var(--mid);  border-color: var(--mid)44;  background: var(--mid)0d;  }
+    .autosave-status.error    { color: var(--bad);  border-color: var(--bad)44;  background: var(--bad)0d;  }
+
+    /* レスポンシブ */
+    @media (max-width: 500px) {
+      .score-grid { grid-template-columns: 1fr 1fr; }
+      .avg-badges { gap: 8px; }
+      .badge { min-width: 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="logo">⚡</div>
+    <div>
+      <h1>感情管理</h1>
+      <div class="subtitle">自分の調子を見える化 — 体力・メンタル・集中力</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="input">📝 記録する</button>
+    <button class="tab" data-tab="history">📊 グラフ・一覧</button>
+    <button class="tab" data-tab="report">📋 月次レポート</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── 記録ページ ── -->
+  <div class="page active" id="page-input">
+    <div class="card">
+      <div class="card-title">今の状態を記録する</div>
+
+      <div class="score-grid">
+        <div class="score-item">
+          <label><span class="emoji">💪</span>体力</label>
+          <select id="score-tairyoku" onchange="updateSelectColor(this)">
+            <option value="">選択</option>
+          </select>
+        </div>
+        <div class="score-item">
+          <label><span class="emoji">🧠</span>メンタル</label>
+          <select id="score-mental" onchange="updateSelectColor(this)">
+            <option value="">選択</option>
+          </select>
+        </div>
+        <div class="score-item">
+          <label><span class="emoji">🎯</span>集中力</label>
+          <select id="score-focus" onchange="updateSelectColor(this)">
+            <option value="">選択</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="comment-wrap">
+        <label>💬 一言コメント（任意）</label>
+        <textarea id="comment" placeholder="例）食べ過ぎて眠くなった、よく眠れた、仕事が多かった..."></textarea>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveRecord()">
+        ✅ 今の状態を保存する
+      </button>
+    </div>
+
+    <!-- 直近3件 -->
+    <div class="card">
+      <div class="card-title">直近の記録</div>
+      <div id="recent-list"></div>
+    </div>
+  </div>
+
+  <!-- ── グラフ・一覧ページ ── -->
+  <div class="page" id="page-history">
+
+    <div class="card">
+      <div class="card-title">💾 ログ保存 / 読み込み</div>
+
+      <!-- 自動保存エリア -->
+      <div id="autosave-area" style="margin-bottom:14px">
+        <div style="font-size:0.78rem;color:var(--text2);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em">自動保存（JSONファイル）</div>
+        <div id="autosave-status" class="autosave-status inactive">📁 保存先が未設定です</div>
+        <div class="export-row" style="margin-top:10px">
+          <button class="btn-export json" id="btn-autosave-set" onclick="setAutoSaveFile()">📁 保存先ファイルを設定する</button>
+          <button class="btn-export"      id="btn-autosave-now" onclick="autoSaveNow()" style="display:none">💾 今すぐ保存</button>
+          <button class="btn-export"      id="btn-autosave-off" onclick="clearAutoSave()" style="display:none;color:var(--text2)">✖ 解除</button>
+        </div>
+        <p class="export-note" id="autosave-note">保存先を設定すると、記録を追加・編集するたびに自動でJSONファイルへ書き込まれます。<br>次回開いたときに「保存先を設定する」→同じファイルを選べばデータを読み込めます。</p>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+
+      <!-- 手動エクスポート -->
+      <div style="font-size:0.78rem;color:var(--text2);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em">手動エクスポート / インポート</div>
+      <div class="export-row">
+        <button class="btn-export csv"        onclick="exportCSV()">📊 CSV で保存</button>
+        <button class="btn-export json"       onclick="exportJSON()">📦 JSON で保存</button>
+        <button class="btn-export import-btn" onclick="document.getElementById('import-file').click()">📂 JSONから読み込む</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+      <p class="export-note">
+        📊 CSV — Excel・スプレッドシートで開けます。<br>
+        📦 JSON — 全データのスナップショットをダウンロード。<br>
+        📂 読み込み — JSONファイルから復元（既存データに追加されます）。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">推移グラフ</div>
+      <div class="filter-row">
+        <label>期間：</label>
+        <select id="chart-range" onchange="renderChart()">
+          <option value="14">直近14件</option>
+          <option value="30" selected>直近30件</option>
+          <option value="60">直近60件</option>
+          <option value="0">全期間</option>
+        </select>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="myChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">平均スコア</div>
+      <div class="avg-badges" id="avg-badges"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">記録一覧</div>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- ── 月次レポートページ ── -->
+  <div class="page" id="page-report">
+    <div class="card">
+      <div class="card-title">月次レポート</div>
+
+      <div class="month-selector">
+        <select id="month-select" onchange="renderReport()"></select>
+      </div>
+
+      <div id="report-content"></div>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast">✅ 記録しました！</div>
+
+<script>
+/* ──────────────────────────────────────
+   データ管理
+────────────────────────────────────── */
+const STORAGE_KEY = 'kanjoukanri_v1';
+
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveRecords(records) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+/* ──────────────────────────────────────
+   初期化
+────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', () => {
+  // スコア選択肢を生成
+  ['score-tairyoku','score-mental','score-focus'].forEach(id => {
+    const sel = document.getElementById(id);
+    for (let i = 10; i >= 1; i--) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${i}点 ${scoreEmoji(i)}`;
+      sel.appendChild(opt);
+    }
+  });
+
+  // タブ
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('page-' + tab.dataset.tab).classList.add('active');
+      if (tab.dataset.tab === 'history') { renderChart(); renderHistory(); renderAvg(); }
+      if (tab.dataset.tab === 'report')  { populateMonthSelect(); renderReport(); }
+    });
+  });
+
+  renderRecent();
+});
+
+function scoreEmoji(n) {
+  if (n >= 8) return '🔥';
+  if (n >= 6) return '😊';
+  if (n >= 4) return '😐';
+  return '😞';
+}
+
+function scoreClass(n) {
+  if (n >= 7) return 'high';
+  if (n >= 4) return 'mid';
+  return 'low';
+}
+
+function updateSelectColor(sel) {
+  const v = parseInt(sel.value);
+  sel.classList.remove('score-high','score-mid','score-low');
+  if (!v) return;
+  if (v >= 7) sel.classList.add('score-high');
+  else if (v >= 4) sel.classList.add('score-mid');
+  else sel.classList.add('score-low');
+}
+
+/* ──────────────────────────────────────
+   保存
+────────────────────────────────────── */
+function saveRecord() {
+  const t = parseInt(document.getElementById('score-tairyoku').value);
+  const m = parseInt(document.getElementById('score-mental').value);
+  const f = parseInt(document.getElementById('score-focus').value);
+  const c = document.getElementById('comment').value.trim();
+
+  if (!t || !m || !f) {
+    showToast('⚠️ 体力・メンタル・集中力を選択してください', 'warn');
+    return;
+  }
+
+  const records = loadRecords();
+  records.push({ id: Date.now(), ts: new Date().toISOString(), t, m, f, c });
+  saveRecords(records);
+
+  // リセット
+  ['score-tairyoku','score-mental','score-focus'].forEach(id => {
+    const s = document.getElementById(id);
+    s.value = '';
+    s.classList.remove('score-high','score-mid','score-low');
+  });
+  document.getElementById('comment').value = '';
+
+  renderRecent();
+  autoSaveNow();
+  showToast('✅ 記録しました！');
+}
+
+/* ──────────────────────────────────────
+   トースト
+────────────────────────────────────── */
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = type === 'warn' ? 'var(--bad)' : 'var(--good)';
+  el.style.color = type === 'warn' ? 'var(--bad)' : 'var(--good)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ──────────────────────────────────────
+   直近一覧（記録ページ）
+────────────────────────────────────── */
+function renderRecent() {
+  const records = loadRecords().slice(-3).reverse();
+  const el = document.getElementById('recent-list');
+  if (!records.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>まだ記録がありません。<br>上のフォームから最初の記録を登録しましょう！</p></div>';
+    return;
+  }
+  el.innerHTML = records.map(r => recordHTML(r, false)).join('');
+}
+
+function scoreOptions(selected) {
+  let html = '<option value="">-</option>';
+  for (let i = 10; i >= 1; i--) {
+    html += `<option value="${i}" ${i === selected ? 'selected' : ''}>${i}点 ${scoreEmoji(i)}</option>`;
+  }
+  return html;
+}
+
+function recordHTML(r, deletable = true) {
+  const d = new Date(r.ts);
+  const dateStr = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const avg = ((r.t + r.m + r.f) / 3).toFixed(1);
+  const editBlock = deletable ? `
+    <div class="edit-form" id="edit-${r.id}">
+      <div class="edit-score-row">
+        <div class="edit-score-item">
+          <label>💪 体力</label>
+          <select id="et-${r.id}" onchange="updateSelectColor(this)">${scoreOptions(r.t)}</select>
+        </div>
+        <div class="edit-score-item">
+          <label>🧠 メンタル</label>
+          <select id="em-${r.id}" onchange="updateSelectColor(this)">${scoreOptions(r.m)}</select>
+        </div>
+        <div class="edit-score-item">
+          <label>🎯 集中力</label>
+          <select id="ef-${r.id}" onchange="updateSelectColor(this)">${scoreOptions(r.f)}</select>
+        </div>
+      </div>
+      <textarea class="edit-comment" id="ec-${r.id}" placeholder="一言コメント">${escHtml(r.c || '')}</textarea>
+      <div class="edit-form-btns">
+        <button class="btn-cancel-edit" onclick="cancelEdit(${r.id})">キャンセル</button>
+        <button class="btn-save-edit"   onclick="applyEdit(${r.id})">✅ 保存する</button>
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="record-item" id="rec-${r.id}">
+      <div class="record-date">${dateStr}<br><span style="font-size:0.82rem;color:var(--text2)">平均 ${avg}</span></div>
+      <div class="record-body">
+        <div class="record-scores" id="rs-${r.id}">
+          <span class="score-tag ${scoreClass(r.t)}">💪 体力 ${r.t}</span>
+          <span class="score-tag ${scoreClass(r.m)}">🧠 メンタル ${r.m}</span>
+          <span class="score-tag ${scoreClass(r.f)}">🎯 集中力 ${r.f}</span>
+        </div>
+        ${r.c ? `<div class="record-comment" id="rc-${r.id}">"${escHtml(r.c)}"</div>` : `<div class="record-comment" id="rc-${r.id}" style="display:none"></div>`}
+        ${editBlock}
+      </div>
+      ${deletable ? `
+      <div class="record-actions">
+        <button class="edit-btn"   id="ebtn-${r.id}" onclick="toggleEdit(${r.id})" title="編集">✏️ 編集</button>
+        <button class="delete-btn" onclick="deleteRecord(${r.id})"                 title="削除">🗑️ 削除</button>
+      </div>` : ''}
+    </div>`;
+}
+
+function deleteRecord(id) {
+  if (!confirm('この記録を削除しますか？')) return;
+  let records = loadRecords().filter(r => r.id !== id);
+  saveRecords(records);
+  renderHistory(); renderAvg(); renderChart(); renderRecent();
+  autoSaveNow();
+  showToast('🗑️ 削除しました');
+}
+
+function toggleEdit(id) {
+  const form = document.getElementById('edit-' + id);
+  const btn  = document.getElementById('ebtn-' + id);
+  if (!form) return;
+  const isOpen = form.classList.toggle('open');
+  btn.textContent = isOpen ? '✖ 閉じる' : '✏️ 編集';
+  // 色を即反映
+  ['et','em','ef'].forEach(prefix => {
+    const sel = document.getElementById(`${prefix}-${id}`);
+    if (sel) updateSelectColor(sel);
+  });
+}
+
+function cancelEdit(id) {
+  const form = document.getElementById('edit-' + id);
+  const btn  = document.getElementById('ebtn-' + id);
+  if (form) form.classList.remove('open');
+  if (btn)  btn.textContent = '✏️ 編集';
+  // 値をリセット
+  const records = loadRecords();
+  const r = records.find(r => r.id === id);
+  if (!r) return;
+  const setVal = (prefix, val) => {
+    const sel = document.getElementById(`${prefix}-${id}`);
+    if (sel) { sel.value = val; updateSelectColor(sel); }
+  };
+  setVal('et', r.t); setVal('em', r.m); setVal('ef', r.f);
+  const ec = document.getElementById('ec-' + id);
+  if (ec) ec.value = r.c || '';
+}
+
+function applyEdit(id) {
+  const t = parseInt(document.getElementById('et-' + id)?.value);
+  const m = parseInt(document.getElementById('em-' + id)?.value);
+  const f = parseInt(document.getElementById('ef-' + id)?.value);
+  const c = document.getElementById('ec-' + id)?.value.trim() || '';
+
+  if (!t || !m || !f) {
+    showToast('⚠️ 体力・メンタル・集中力を選択してください', 'warn');
+    return;
+  }
+
+  const records = loadRecords();
+  const idx = records.findIndex(r => r.id === id);
+  if (idx === -1) return;
+
+  records[idx] = { ...records[idx], t, m, f, c };
+  saveRecords(records);
+
+  renderHistory(); renderAvg(); renderChart(); renderRecent();
+  autoSaveNow();
+  showToast('✅ 修正しました！');
+}
+
+function pad(n) { return String(n).padStart(2,'0'); }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ──────────────────────────────────────
+   グラフ
+────────────────────────────────────── */
+let chartInst = null;
+
+function renderChart() {
+  const range = parseInt(document.getElementById('chart-range').value);
+  let records = loadRecords();
+  if (range > 0) records = records.slice(-range);
+
+  const labels = records.map(r => {
+    const d = new Date(r.ts);
+    return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+
+  const ctx = document.getElementById('myChart').getContext('2d');
+  if (chartInst) chartInst.destroy();
+
+  chartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '💪 体力',
+          data: records.map(r => r.t),
+          borderColor: '#43e97b',
+          backgroundColor: '#43e97b22',
+          tension: 0.3,
+          pointRadius: 4,
+          fill: false,
+        },
+        {
+          label: '🧠 メンタル',
+          data: records.map(r => r.m),
+          borderColor: '#6c63ff',
+          backgroundColor: '#6c63ff22',
+          tension: 0.3,
+          pointRadius: 4,
+          fill: false,
+        },
+        {
+          label: '🎯 集中力',
+          data: records.map(r => r.f),
+          borderColor: '#ff6584',
+          backgroundColor: '#ff658422',
+          tension: 0.3,
+          pointRadius: 4,
+          fill: false,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 10, ticks: { stepSize: 2, color: '#8b90b0' }, grid: { color: '#2e324833' } },
+        x: { ticks: { color: '#8b90b0', maxTicksLimit: 10, maxRotation: 45 }, grid: { color: '#2e324822' } }
+      },
+      plugins: {
+        legend: { labels: { color: '#e8eaf6', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            afterBody: ctx => {
+              const r = records[ctx[0].dataIndex];
+              return r.c ? [`💬 ${r.c}`] : [];
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ──────────────────────────────────────
+   平均バッジ
+────────────────────────────────────── */
+function renderAvg() {
+  const records = loadRecords();
+  const el = document.getElementById('avg-badges');
+  if (!records.length) { el.innerHTML = ''; return; }
+
+  const avg = v => (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
+  const total = records.length;
+  const avgT = avg(records.map(r=>r.t));
+  const avgM = avg(records.map(r=>r.m));
+  const avgF = avg(records.map(r=>r.f));
+  const avgAll = ((+avgT + +avgM + +avgF)/3).toFixed(1);
+
+  el.innerHTML = `
+    <div class="badge">
+      <div class="badge-label">💪 体力</div>
+      <div class="badge-value" style="color:${scoreColor(avgT)}">${avgT}</div>
+      <div class="badge-sub">/ 10</div>
+    </div>
+    <div class="badge">
+      <div class="badge-label">🧠 メンタル</div>
+      <div class="badge-value" style="color:${scoreColor(avgM)}">${avgM}</div>
+      <div class="badge-sub">/ 10</div>
+    </div>
+    <div class="badge">
+      <div class="badge-label">🎯 集中力</div>
+      <div class="badge-value" style="color:${scoreColor(avgF)}">${avgF}</div>
+      <div class="badge-sub">/ 10</div>
+    </div>
+    <div class="badge">
+      <div class="badge-label">📊 総合平均</div>
+      <div class="badge-value" style="color:${scoreColor(avgAll)}">${avgAll}</div>
+      <div class="badge-sub">${total}件の記録</div>
+    </div>`;
+}
+
+function scoreColor(v) {
+  if (v >= 7) return 'var(--good)';
+  if (v >= 4) return 'var(--mid)';
+  return 'var(--bad)';
+}
+
+/* ──────────────────────────────────────
+   履歴一覧
+────────────────────────────────────── */
+function renderHistory() {
+  const records = loadRecords().slice().reverse();
+  const el = document.getElementById('history-list');
+  if (!records.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>まだ記録がありません</p></div>';
+    return;
+  }
+  el.innerHTML = records.map(r => recordHTML(r, true)).join('');
+}
+
+/* ──────────────────────────────────────
+   月次レポート
+────────────────────────────────────── */
+function populateMonthSelect() {
+  const records = loadRecords();
+  const months = [...new Set(records.map(r => r.ts.slice(0,7)))].sort().reverse();
+  const sel = document.getElementById('month-select');
+  const cur = sel.value;
+
+  // 今月を追加（記録がなくても表示）
+  const now = new Date().toISOString().slice(0,7);
+  if (!months.includes(now)) months.unshift(now);
+
+  sel.innerHTML = months.map(m => `<option value="${m}" ${m===cur?'selected':''}>${m.replace('-','年')}月</option>`).join('');
+}
+
+function renderReport() {
+  const month = document.getElementById('month-select').value;
+  if (!month) return;
+
+  const allRecords = loadRecords();
+  const records = allRecords.filter(r => r.ts.startsWith(month));
+  const el = document.getElementById('report-content');
+
+  if (!records.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>この月の記録はまだありません</p></div>';
+    return;
+  }
+
+  const avg = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+  const avgT = avg(records.map(r=>r.t));
+  const avgM = avg(records.map(r=>r.m));
+  const avgF = avg(records.map(r=>r.f));
+  const avgTotals = records.map(r => (r.t+r.m+r.f)/3);
+  const avgAll = avg(avgTotals);
+
+  // 最高・最低
+  const sorted = [...records].sort((a,b)=> (b.t+b.m+b.f)-(a.t+a.m+a.f));
+  const best = sorted[0];
+  const worst = sorted[sorted.length-1];
+
+  const fmtDate = r => { const d=new Date(r.ts); return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+  // 8以上の日の割合
+  const highDays = records.filter(r=>(r.t+r.m+r.f)/3>=7).length;
+  const lowDays  = records.filter(r=>(r.t+r.m+r.f)/3<=4).length;
+
+  // 連続記録
+  const days = [...new Set(records.map(r=>r.ts.slice(0,10)))].sort();
+
+  // ストリークドット（月のカレンダー）
+  const [y,mo] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const dotHTML = Array.from({length: daysInMonth}, (_,i) => {
+    const day = String(i+1).padStart(2,'0');
+    const key = `${month}-${day}`;
+    const dayRecs = records.filter(r=>r.ts.startsWith(key));
+    if (!dayRecs.length) return `<div class="streak-dot" style="background:var(--surface2);color:var(--text2)" data-tip="${mo}/${i+1} 記録なし">${i+1}</div>`;
+    const a = avg(dayRecs.map(r=>(r.t+r.m+r.f)/3));
+    const bg = a>=7?'var(--good)':a>=4?'var(--mid)':'var(--bad)';
+    return `<div class="streak-dot" style="background:${bg}" data-tip="${mo}/${i+1} 平均${a.toFixed(1)}">${i+1}</div>`;
+  }).join('');
+
+  // コメントから傾向を拾う
+  const goodComments = records.filter(r=>(r.t+r.m+r.f)/3>=7 && r.c).map(r=>r.c);
+  const badComments  = records.filter(r=>(r.t+r.m+r.f)/3<=4 && r.c).map(r=>r.c);
+
+  el.innerHTML = `
+    <div class="avg-badges" style="margin-bottom:20px">
+      <div class="badge">
+        <div class="badge-label">💪 体力</div>
+        <div class="badge-value" style="color:${scoreColor(avgT)}">${avgT.toFixed(1)}</div>
+      </div>
+      <div class="badge">
+        <div class="badge-label">🧠 メンタル</div>
+        <div class="badge-value" style="color:${scoreColor(avgM)}">${avgM.toFixed(1)}</div>
+      </div>
+      <div class="badge">
+        <div class="badge-label">🎯 集中力</div>
+        <div class="badge-value" style="color:${scoreColor(avgF)}">${avgF.toFixed(1)}</div>
+      </div>
+      <div class="badge">
+        <div class="badge-label">📊 総合</div>
+        <div class="badge-value" style="color:${scoreColor(avgAll)}">${avgAll.toFixed(1)}</div>
+        <div class="badge-sub">${records.length}件</div>
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>📅 記録カレンダー</h3>
+      <div class="streak-bar">${dotHTML}</div>
+      <div style="margin-top:8px;font-size:0.72rem;color:var(--text2)">
+        🟢 好調（7以上）　🟡 普通（4〜6）　🔴 不調（3以下）　⬛ 記録なし
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>📈 この月のハイライト</h3>
+      <div class="insight-list">
+        <div class="insight-item">
+          <div class="ins-label ins-good">🏆 最高の日</div>
+          <strong>${fmtDate(best)}</strong> — 体力${best.t} / メンタル${best.m} / 集中力${best.f}（合計${best.t+best.m+best.f}点）
+          ${best.c ? `<br><span style="color:var(--text2);font-style:italic">"${escHtml(best.c)}"</span>` : ''}
+        </div>
+        <div class="insight-item">
+          <div class="ins-label ins-bad">⚡ 最低の日</div>
+          <strong>${fmtDate(worst)}</strong> — 体力${worst.t} / メンタル${worst.m} / 集中力${worst.f}（合計${worst.t+worst.m+worst.f}点）
+          ${worst.c ? `<br><span style="color:var(--text2);font-style:italic">"${escHtml(worst.c)}"</span>` : ''}
+        </div>
+        <div class="insight-item">
+          <div class="ins-label ins-info">📊 分布</div>
+          好調（7以上）：<strong style="color:var(--good)">${highDays}件</strong> ／
+          不調（4以下）：<strong style="color:var(--bad)">${lowDays}件</strong> ／
+          普通：<strong>${records.length - highDays - lowDays}件</strong>
+        </div>
+        ${generateWeakPoint(avgT, avgM, avgF)}
+      </div>
+    </div>
+
+    ${goodComments.length ? `
+    <div class="report-section">
+      <h3>😊 調子が良い時のコメント</h3>
+      <div class="insight-list">
+        ${goodComments.slice(0,5).map(c=>`<div class="insight-item" style="color:var(--good)">💬 "${escHtml(c)}"</div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${badComments.length ? `
+    <div class="report-section">
+      <h3>😞 調子が悪い時のコメント</h3>
+      <div class="insight-list">
+        ${badComments.slice(0,5).map(c=>`<div class="insight-item" style="color:var(--bad)">💬 "${escHtml(c)}"</div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="report-section">
+      <h3>💡 アドバイス</h3>
+      <div class="insight-list">
+        ${generateAdvice(avgT, avgM, avgF, records)}
+      </div>
+    </div>
+  `;
+}
+
+function generateWeakPoint(t, m, f) {
+  const min = Math.min(t, m, f);
+  if (min === t) return `<div class="insight-item"><div class="ins-label ins-bad">⚠️ 要注意</div>今月は<strong>体力</strong>が最も低い傾向です（平均${t.toFixed(1)}点）。睡眠・食事・運動を見直してみましょう。</div>`;
+  if (min === m) return `<div class="insight-item"><div class="ins-label ins-bad">⚠️ 要注意</div>今月は<strong>メンタル</strong>が最も低い傾向です（平均${m.toFixed(1)}点）。休息やリフレッシュを意識してみましょう。</div>`;
+  return `<div class="insight-item"><div class="ins-label ins-bad">⚠️ 要注意</div>今月は<strong>集中力</strong>が最も低い傾向です（平均${f.toFixed(1)}点）。作業環境や時間帯を変えてみましょう。</div>`;
+}
+
+function generateAdvice(t, m, f, records) {
+  const items = [];
+  const avg = v => v.toFixed(1);
+
+  if (t < 5) items.push('<div class="insight-item">💪 体力が低め（' + avg(t) + '点）。十分な睡眠と食事が最優先です。まずは7〜8時間の睡眠を確保しましょう。</div>');
+  if (m < 5) items.push('<div class="insight-item">🧠 メンタルが低め（' + avg(m) + '点）。無理をせず休む日を作ることが大切です。好きなことをする時間を確保してみましょう。</div>');
+  if (f < 5) items.push('<div class="insight-item">🎯 集中力が低め（' + avg(f) + '点）。25分集中→5分休憩のポモドーロテクニックを試してみてください。</div>');
+
+  const highTimes = records.filter(r=>(r.t+r.m+r.f)/3>=7).map(r=>new Date(r.ts).getHours());
+  if (highTimes.length >= 3) {
+    const hourCount = {};
+    highTimes.forEach(h => hourCount[h] = (hourCount[h]||0)+1);
+    const bestHour = Object.entries(hourCount).sort((a,b)=>b[1]-a[1])[0][0];
+    items.push(`<div class="insight-item">⏰ あなたの調子が良い時間帯は <strong>${bestHour}時台</strong> が多いです。重要な仕事はこの時間にスケジュールしてみましょう。</div>`);
+  }
+
+  if (!items.length) items.push('<div class="insight-item" style="color:var(--good)">🎉 今月は安定した調子を維持できています！この生活リズムを続けていきましょう。</div>');
+
+  return items.join('');
+}
+
+/* ──────────────────────────────────────
+   自動保存（File System Access API）
+────────────────────────────────────── */
+let _autoSaveHandle = null; // FileSystemFileHandle
+
+async function setAutoSaveFile() {
+  if (!window.showSaveFilePicker) {
+    showToast('⚠️ このブラウザは自動保存に非対応です（Edge/Chrome推奨）', 'warn');
+    return;
+  }
+
+  // まず「新規 or 既存？」をユーザーに選ばせる
+  const choice = await askSaveMode();
+  if (!choice) return; // キャンセル
+
+  const fileTypes = [{ description: 'JSONファイル', accept: { 'application/json': ['.json'] } }];
+
+  try {
+    let handle;
+
+    if (choice === 'open' && window.showOpenFilePicker) {
+      // 既存ファイルを開く → 書き込み権限を明示的にリクエスト
+      try {
+        [handle] = await window.showOpenFilePicker({ types: fileTypes, multiple: false });
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        throw e;
+      }
+
+      // 書き込み権限をリクエスト（ここが前回の失敗原因）
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') {
+        showToast('⚠️ ファイルへの書き込みが許可されませんでした', 'warn');
+        return;
+      }
+
+      // 既存データを読み込んでマージ
+      try {
+        const file = await handle.getFile();
+        const data = JSON.parse(await file.text());
+        const incoming = Array.isArray(data) ? data : (data.records || []);
+        if (incoming.length) {
+          const existing = loadRecords();
+          const existingIds = new Set(existing.map(r => r.id));
+          const newRecs = incoming.filter(r => !existingIds.has(r.id));
+          if (newRecs.length) {
+            const merged = [...existing, ...newRecs].sort((a,b)=>a.ts>b.ts?1:-1);
+            saveRecords(merged);
+            renderRecent();
+            showToast(`📂 ${newRecs.length}件を読み込みました`);
+          } else {
+            showToast('📂 ファイルを読み込みました（新規データなし）');
+          }
+        }
+      } catch {} // JSON parse 失敗は無視（空ファイルなど）
+
+    } else {
+      // 新規ファイルを作成（showSaveFilePicker は最初から readwrite）
+      try {
+        handle = await window.showSaveFilePicker({
+          suggestedName: '感情管理ログ.json',
+          types: fileTypes
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        throw e;
+      }
+    }
+
+    _autoSaveHandle = handle;
+    updateAutoSaveUI(handle.name);
+    await autoSaveNow();
+
+  } catch (e) {
+    showToast(`⚠️ 保存先の設定に失敗しました: ${e.message}`, 'warn');
+  }
+}
+
+function askSaveMode() {
+  return new Promise(resolve => {
+    // 既存モーダルがあれば削除
+    document.getElementById('save-mode-modal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'save-mode-modal';
+    modal.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;
+      display:flex;align-items:center;justify-content:center;padding:20px;
+    `;
+    modal.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;max-width:360px;width:100%">
+        <div style="font-size:1rem;font-weight:700;margin-bottom:8px">💾 ログファイルの設定</div>
+        <div style="font-size:0.82rem;color:var(--text2);margin-bottom:20px;line-height:1.6">
+          既存のログファイルがある場合は「既存を開く」を選ぶと<br>データを読み込んで継続できます。
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button onclick="document.getElementById('save-mode-modal').remove();document.dispatchEvent(new CustomEvent('savemode',{detail:'open'}))"
+            style="padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.88rem;font-weight:600;cursor:pointer;text-align:left">
+            📂 既存のJSONファイルを開く（データ読み込み＋継続保存）
+          </button>
+          <button onclick="document.getElementById('save-mode-modal').remove();document.dispatchEvent(new CustomEvent('savemode',{detail:'new'}))"
+            style="padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.88rem;font-weight:600;cursor:pointer;text-align:left">
+            🆕 新しいファイルを作成する
+          </button>
+          <button onclick="document.getElementById('save-mode-modal').remove();document.dispatchEvent(new CustomEvent('savemode',{detail:null}))"
+            style="padding:8px;background:none;border:none;color:var(--text2);font-size:0.82rem;cursor:pointer">
+            キャンセル
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.addEventListener('savemode', e => resolve(e.detail), { once: true });
+  });
+}
+
+async function autoSaveNow() {
+  if (!_autoSaveHandle) return;
+  const statusEl = document.getElementById('autosave-status');
+  if (statusEl) { statusEl.className = 'autosave-status saving'; statusEl.textContent = '💾 保存中...'; }
+  try {
+    const records = loadRecords();
+    const json = JSON.stringify({ version: 1, savedAt: new Date().toISOString(), records }, null, 2);
+    const writable = await _autoSaveHandle.createWritable();
+    await writable.write(json);
+    await writable.close();
+    const t = new Date();
+    const timeStr = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+    if (statusEl) {
+      statusEl.className = 'autosave-status active';
+      statusEl.textContent = `✅ 自動保存済み — ${_autoSaveHandle.name}  （最終: ${timeStr}）`;
+    }
+  } catch (e) {
+    if (statusEl) { statusEl.className = 'autosave-status error'; statusEl.textContent = `⚠️ 保存失敗: ${e.message}`; }
+  }
+}
+
+function clearAutoSave() {
+  _autoSaveHandle = null;
+  updateAutoSaveUI(null);
+  showToast('自動保存を解除しました');
+}
+
+function updateAutoSaveUI(filename) {
+  const status  = document.getElementById('autosave-status');
+  const btnNow  = document.getElementById('btn-autosave-now');
+  const btnOff  = document.getElementById('btn-autosave-off');
+  const btnSet  = document.getElementById('btn-autosave-set');
+  const note    = document.getElementById('autosave-note');
+  if (!status) return;
+  if (filename) {
+    status.className = 'autosave-status active';
+    status.textContent = `✅ 保存先: ${filename}`;
+    if (btnNow) btnNow.style.display = '';
+    if (btnOff) btnOff.style.display = '';
+    if (btnSet) btnSet.textContent = '📁 保存先を変更する';
+    if (note)   note.textContent = '記録を追加・編集するたびに自動で書き込まれます。';
+  } else {
+    status.className = 'autosave-status inactive';
+    status.textContent = '📁 保存先が未設定です';
+    if (btnNow) btnNow.style.display = 'none';
+    if (btnOff) btnOff.style.display = 'none';
+    if (btnSet) btnSet.textContent = '📁 保存先ファイルを設定する';
+    if (note)   note.textContent = '保存先を設定すると、記録を追加・編集するたびに自動でJSONファイルへ書き込まれます。';
+  }
+}
+
+/* ──────────────────────────────────────
+   ログ保存 / 読み込み
+────────────────────────────────────── */
+function exportCSV() {
+  const records = loadRecords();
+  if (!records.length) { showToast('⚠️ 保存するデータがありません', 'warn'); return; }
+
+  const header = ['日時', '体力', 'メンタル', '集中力', '平均', 'コメント'];
+  const rows = records.map(r => {
+    const d = new Date(r.ts);
+    const dateStr = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const avg = ((r.t + r.m + r.f) / 3).toFixed(1);
+    const comment = (r.c || '').replace(/"/g, '""');
+    return [dateStr, r.t, r.m, r.f, avg, `"${comment}"`].join(',');
+  });
+
+  const bom = '\uFEFF'; // Excel文字化け防止
+  const csv = bom + [header.join(','), ...rows].join('\n');
+  downloadFile(csv, `感情管理_${todayStr()}.csv`, 'text/csv;charset=utf-8');
+  showToast('📊 CSVを保存しました');
+}
+
+function exportJSON() {
+  const records = loadRecords();
+  if (!records.length) { showToast('⚠️ 保存するデータがありません', 'warn'); return; }
+
+  const json = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), records }, null, 2);
+  downloadFile(json, `感情管理_${todayStr()}.json`, 'application/json');
+  showToast('📦 JSONを保存しました');
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const incoming = Array.isArray(data) ? data : (data.records || []);
+      if (!incoming.length) { showToast('⚠️ データが見つかりませんでした', 'warn'); return; }
+
+      const existing = loadRecords();
+      const existingIds = new Set(existing.map(r => r.id));
+      const newRecs = incoming.filter(r => !existingIds.has(r.id));
+      const merged = [...existing, ...newRecs].sort((a,b) => a.ts > b.ts ? 1 : -1);
+
+      saveRecords(merged);
+      renderHistory(); renderAvg(); renderChart(); renderRecent();
+      showToast(`✅ ${newRecs.length}件を読み込みました（重複除外）`);
+    } catch {
+      showToast('⚠️ ファイルの読み込みに失敗しました', 'warn');
+    }
+    event.target.value = ''; // 同ファイルを再度選べるようにリセット
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+}
+</script>
+</body>
+</html>
